@@ -1,0 +1,20 @@
+{
+  "name": "kodix",
+  "version": "1.0.0",
+  "description": "A GitHub Action that reviews PRs for i18n issues using Lingo.dev",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Abdul-Jimoh/kodix.git"
+  },
+  "keywords": [],
+  "author": "Abdulqadir Jimoh",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Abdul-Jimoh/kodix/issues"
+  },
+  "homepage": "https://github.com/Abdul-Jimoh/kodix#readme"
+}
