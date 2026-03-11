@@ -1,0 +1,23 @@
+name: "Kodix - i18n Review"
+description: "Reviews PRs for i18n issues like missing translation keys, hardcoded strings, and glossary violations using Lingo.dev"
+author: "Abdulqadir Jimoh"
+
+inputs:
+  github-token:
+    description: "GitHub token for posting review comments"
+    required: true
+  lingo-api-key:
+    description: "Lingo.dev API key for glossary checks"
+    required: true
+  locales-path:
+    description: "Path to your locale JSON files e.g. locales/"
+    required: true
+    default: "locales/"
+  base-locale:
+    description: "Your source/base language e.g. en"
+    required: true
+    default: "en"
+
+runs:
+  using: "node20"
+  main: "src/index.js"

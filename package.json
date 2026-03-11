@@ -16,5 +16,10 @@
   "bugs": {
     "url": "https://github.com/Abdul-Jimoh/kodix/issues"
   },
-  "homepage": "https://github.com/Abdul-Jimoh/kodix#readme"
+  "homepage": "https://github.com/Abdul-Jimoh/kodix#readme",
+  "dependencies": {
+    "@babel/parser": "^7.29.0",
+    "@babel/traverse": "^7.29.0",
+    "@octokit/rest": "^22.0.1"
+  }
 }
