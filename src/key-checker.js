@@ -8,13 +8,11 @@ async function checkMissingKeys(files, localesPath, baseLocale) {
     baseLocale
   );
 
-  // If there's no base locale file changed in this PR, nothing to check
   if (!baseLocaleFile) {
     console.log("Kodix: No base locale file changed, skipping key check");
     return issues;
   }
 
-  // Parse the diff to extract only added keys from the base locale
   const addedKeys = extractAddedKeys(baseLocaleFile.content);
 
   if (addedKeys.length === 0) {
@@ -24,7 +22,6 @@ async function checkMissingKeys(files, localesPath, baseLocale) {
 
   console.log(`Kodix: Found ${addedKeys.length} new keys in base locale`);
 
-  // Check each other locale file for those keys
   otherLocaleFiles.forEach((localeFile) => {
     const localeKeys = extractAllKeys(localeFile.content);
     const localeName = localeFile.filename;

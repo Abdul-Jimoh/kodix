@@ -8,16 +8,14 @@ function parseDiff(files, localesPath, baseLocale) {
     const filePath = file.filename;
     const fileExtension = path.extname(filePath);
 
-    // Check if this is a locale JSON file
     if (filePath.startsWith(localesPath) && fileExtension === ".json") {
       localeFiles.push({
         filename: filePath,
-        status: file.status, // added, modified, removed
-        content: file.patch, // the actual diff content
+        status: file.status,
+        content: file.patch,
       });
     }
 
-    // Check if this is a JS/JSX file
     if (
       [".js", ".jsx", ".ts", ".tsx"].includes(fileExtension) &&
       file.status !== "removed"
@@ -30,11 +28,11 @@ function parseDiff(files, localesPath, baseLocale) {
   });
 
   const baseLocaleFile = localeFiles.find((file) =>
-    file.filename.includes(`${baseLocale}.json`)
+    file.filename.includes(`${baseLocale}.json`),
   );
 
   const otherLocaleFiles = localeFiles.filter(
-    (file) => !file.filename.includes(`${baseLocale}.json`)
+    (file) => !file.filename.includes(`${baseLocale}.json`),
   );
 
   return {
