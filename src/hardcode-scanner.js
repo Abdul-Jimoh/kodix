@@ -31,7 +31,7 @@ async function scanHardcodedStrings(files) {
           const value = path.node.value.trim();
           if (value.length > 0 && /[a-zA-Z]/.test(value)) {
             issues.push(
-              `🔤 Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`
+              `Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`
             );
           }
         },
@@ -46,7 +46,7 @@ async function scanHardcodedStrings(files) {
             const attrValue = path.node.value.value;
             if (["placeholder", "label", "title", "alt"].includes(attrName)) {
               issues.push(
-                `🔤 Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`
+                `Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`
               );
             }
           }

@@ -1,7 +1,6 @@
 const core = require("@actions/core");
 const github = require("@actions/github");
 
-const { parseDiff } = require("./diff-parser");
 const { checkMissingKeys } = require("./key-checker");
 const { scanHardcodedStrings } = require("./hardcode-scanner");
 const { checkGlossaryViolations } = require("./glossary-checker");
@@ -18,22 +17,22 @@ async function run() {
     const { owner, repo } = context.repo;
     const prNumber = context.payload.pull_request.number;
 
+    console.log(`Kodix: Starting i18n review for PR #${prNumber}`);
+
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner,
       repo,
       pull_number: prNumber,
     });
 
-    console.log(
-      `Kodix: Found ${files.length} changed files in PR #${prNumber}`,
-    );
+    console.log(`Kodix: Found ${files.length} changed files`);
 
-    const missingKeys = await checkMissingKeys(files, localesPath, baseLocale);
-    const hardcodedStrings = await scanHardcodedStrings(files);
-    const glossaryViolations = await checkGlossaryViolations(
-      files,
-      lingoApiKey,
-    );
+    const [missingKeys, hardcodedStrings, glossaryViolations] =
+      await Promise.all([
+        checkMissingKeys(files, localesPath, baseLocale),
+        scanHardcodedStrings(files),
+        checkGlossaryViolations(files, lingoApiKey),
+      ]);
 
     const allIssues = [
       ...missingKeys,
@@ -41,19 +40,41 @@ async function run() {
       ...glossaryViolations,
     ];
 
-    let comment = "## 🌍 Kodix i18n Review\n\n";
+    let comment = "## Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
-      comment += "✅ No i18n issues found. Great work!\n";
+      comment +=
+        "**All i18n checks passed!** No issues found. Great work!\n";
     } else {
       comment += `Found **${allIssues.length} i18n issue(s)** that need attention:\n\n`;
-      allIssues.forEach((issue) => {
-        comment += `- ${issue}\n`;
-      });
+
+      if (missingKeys.length > 0) {
+        comment += "### Missing Translation Keys\n"; 
+        missingKeys.forEach((issue) => {
+          comment += `- ${issue}\n`;
+        });
+        comment += "\n";
+      }
+
+      if (hardcodedStrings.length > 0) {
+        comment += "### Hardcoded Strings\n";
+        hardcodedStrings.forEach((issue) => {
+          comment += `- ${issue}\n`;
+        });
+        comment += "\n";
+      }
+
+      if (glossaryViolations.length > 0) {
+        comment += "### Glossary Violations\n";
+        glossaryViolations.forEach((issue) => {
+          comment += `- ${issue}\n`;
+        });
+        comment += "\n";
+      }
     }
 
     comment +=
-      "\n\n---\n*Powered by [Kodix](https://github.com/Abdul-Jimoh/kodix) using [Lingo.dev](https://lingo.dev)*";
+      "---\n*Powered by [Kodix](https://github.com/Abdul-Jimoh/kodix) using [Lingo.dev](https://lingo.dev)*";
 
     await octokit.rest.issues.createComment({
       owner,
@@ -63,6 +84,12 @@ async function run() {
     });
 
     console.log("Kodix: Review comment posted successfully");
+
+    if (allIssues.length > 0) {
+      core.setFailed(
+        `Kodix found ${allIssues.length} i18n issue(s). Please fix them before merging.`,
+      );
+    }
   } catch (error) {
     core.setFailed(`Kodix failed: ${error.message}`);
   }

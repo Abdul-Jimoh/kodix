@@ -29,7 +29,7 @@ async function checkMissingKeys(files, localesPath, baseLocale) {
     addedKeys.forEach((key) => {
       if (!localeKeys.includes(key)) {
         issues.push(
-          `🔑 Missing translation key \`${key}\` in \`${localeName}\``
+          `Missing translation key \`${key}\` in \`${localeName}\``
         );
       }
     });

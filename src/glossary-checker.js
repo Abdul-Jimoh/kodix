@@ -48,7 +48,7 @@ async function checkGlossaryViolations(files, lingoApiKey) {
             !translationValue.toLowerCase().includes(targetTerm.toLowerCase())
           ) {
             issues.push(
-              `📖 Possible glossary violation in \`${file.filename}\`: "${sourceTerm}" should be translated as "${targetTerm}" for locale \`${locale}\``
+              `Possible glossary violation in \`${file.filename}\`: "${sourceTerm}" should be translated as "${targetTerm}" for locale \`${locale}\``
             );
           }
         });
