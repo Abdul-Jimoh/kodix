@@ -11,6 +11,7 @@ async function run() {
     const lingoApiKey = core.getInput("lingo-api-key");
     const localesPath = core.getInput("locales-path");
     const baseLocale = core.getInput("base-locale");
+    const lingoEngineId = core.getInput("lingo-engine-id");
 
     const octokit = github.getOctokit(githubToken);
     const context = github.context;
@@ -31,7 +32,7 @@ async function run() {
       await Promise.all([
         checkMissingKeys(files, localesPath, baseLocale),
         scanHardcodedStrings(files),
-        checkGlossaryViolations(files, lingoApiKey),
+        checkGlossaryViolations(files, lingoApiKey, lingoEngineId),
       ]);
 
     const allIssues = [

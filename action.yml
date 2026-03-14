@@ -17,6 +17,10 @@ inputs:
     description: "Your source/base language e.g. en"
     required: true
     default: "en"
+  lingo-engine-id:
+    description: "Lingo.dev Engine ID for glossary and brand voice checks"
+    required: false
+    default: ""
 
 runs:
   using: "node20"
