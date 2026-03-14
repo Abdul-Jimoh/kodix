@@ -19,8 +19,8 @@
   },
   "homepage": "https://github.com/Abdul-Jimoh/kodix#readme",
   "dependencies": {
-    "@actions/core": "^3.0.0",
-    "@actions/github": "^9.0.0",
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1",
     "@babel/parser": "^7.29.0",
     "@babel/traverse": "^7.29.0",
     "@octokit/rest": "^22.0.1"
