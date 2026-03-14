@@ -2,7 +2,9 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
   const issues = [];
 
   if (!lingoApiKey) {
-    console.log("Kodix: No Lingo.dev API key provided, skipping glossary check");
+    console.log(
+      "Kodix: No Lingo.dev API key provided, skipping glossary check",
+    );
     return issues;
   }
 
@@ -11,11 +13,13 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
     (file) =>
       file.filename.endsWith(".json") &&
       file.status !== "removed" &&
-      !file.filename.includes("en.json")
+      !file.filename.includes("en.json"),
   );
 
   if (localeFiles.length === 0) {
-    console.log("Kodix: No non-base locale files changed, skipping glossary check");
+    console.log(
+      "Kodix: No non-base locale files changed, skipping glossary check",
+    );
     return issues;
   }
 
@@ -31,7 +35,7 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
     if (!targetLocale) continue;
 
     console.log(
-      `Kodix: Checking ${Object.keys(addedPairs).length} translations in ${file.filename} against Lingo.dev engine`
+      `Kodix: Checking ${Object.keys(addedPairs).length} translations in ${file.filename} against Lingo.dev engine`,
     );
 
     try {
@@ -41,8 +45,11 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
         "en",
         targetLocale,
         lingoApiKey,
-        engineId
+        engineId,
       );
+
+      console.log(`Kodix DEBUG - actual: ${JSON.stringify(addedPairs)}`);
+      console.log(`Kodix DEBUG - suggested: ${JSON.stringify(suggested)}`);
 
       // Compare suggested vs actual translations
       for (const key of Object.keys(addedPairs)) {
@@ -57,7 +64,7 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
         // Flag if they're significantly different (less than 70% similar)
         if (similarity < 0.7) {
           issues.push(
-            `📖 Possible glossary/brand voice violation in \`${file.filename}\` for key \`${key}\`: got "${addedPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
+            `📖 Possible glossary/brand voice violation in \`${file.filename}\` for key \`${key}\`: got "${addedPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`,
           );
         }
       }
@@ -92,7 +99,13 @@ function detectLocale(filename) {
   return match ? match[1] : null;
 }
 
-async function localizeWithLingo(data, sourceLocale, targetLocale, apiKey, engineId) {
+async function localizeWithLingo(
+  data,
+  sourceLocale,
+  targetLocale,
+  apiKey,
+  engineId,
+) {
   const body = {
     sourceLocale,
     targetLocale,

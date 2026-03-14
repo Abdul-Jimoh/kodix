@@ -41,7 +41,7 @@ async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
           const value = path.node.value.trim();
           if (value.length > 0 && /[a-zA-Z]/.test(value)) {
             issues.push(
-              `🔤 Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`
+              `Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`
             );
           }
         },
