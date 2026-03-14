@@ -78476,6 +78476,9 @@ async function localizeWithLingo(data, sourceLocale, targetLocale, apiKey, engin
     body.engineId = engineId;
   }
 
+  console.log(`Kodix DEBUG - calling lingo with engineId: "${engineId}" sourceLocale: "${sourceLocale}" targetLocale: "${targetLocale}"`);
+  console.log(`Kodix DEBUG - request body: ${JSON.stringify(body)}`);
+
   const response = await fetch("https://api.lingo.dev/process/localize", {
     method: "POST",
     headers: {
