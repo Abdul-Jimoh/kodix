@@ -78347,13 +78347,11 @@ module.exports = { parseDiff };
 /***/ 3052:
 /***/ ((module) => {
 
-async function checkGlossaryViolations(files, lingoApiKey, engineId) {
+async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleContent, baseLocale) {
   const issues = [];
 
   if (!lingoApiKey) {
-    console.log(
-      "Kodix: No Lingo.dev API key provided, skipping glossary check",
-    );
+    console.log("Kodix: No Lingo.dev API key provided, skipping glossary check");
     return issues;
   }
 
@@ -78362,58 +78360,69 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
     (file) =>
       file.filename.endsWith(".json") &&
       file.status !== "removed" &&
-      !file.filename.includes("en.json"),
+      !file.filename.includes(`${baseLocale}.json`)
   );
 
   if (localeFiles.length === 0) {
-    console.log(
-      "Kodix: No non-base locale files changed, skipping glossary check",
-    );
+    console.log("Kodix: No non-base locale files changed, skipping glossary check");
     return issues;
   }
 
   for (const file of localeFiles) {
     if (!file.patch) continue;
 
-    // Extract added translation pairs from the diff
-    const addedPairs = extractAddedPairs(file.patch);
-    if (Object.keys(addedPairs).length === 0) continue;
+    // Get the keys that were added/modified in this locale file
+    const addedKeys = extractAddedKeys(file.patch);
+    if (addedKeys.length === 0) continue;
+
+    // Build pairs using base locale source values for these keys
+    const sourcePairs = {};
+    addedKeys.forEach((key) => {
+      if (baseLocaleContent[key]) {
+        sourcePairs[key] = baseLocaleContent[key];
+      }
+    });
+
+    if (Object.keys(sourcePairs).length === 0) continue;
 
     // Detect target locale from filename e.g locales/fr.json -> fr
     const targetLocale = detectLocale(file.filename);
     if (!targetLocale) continue;
 
     console.log(
-      `Kodix: Checking ${Object.keys(addedPairs).length} translations in ${file.filename} against Lingo.dev engine`,
+      `Kodix: Checking ${Object.keys(sourcePairs).length} translations in ${file.filename} against Lingo.dev engine`
     );
 
     try {
       // Ask Lingo.dev what the correct translations should be
+      // using the base locale values as source
       const suggested = await localizeWithLingo(
-        addedPairs,
-        "en",
+        sourcePairs,
+        baseLocale,
         targetLocale,
         lingoApiKey,
-        engineId,
+        engineId
       );
 
-      console.log(`Kodix DEBUG - actual: ${JSON.stringify(addedPairs)}`);
+      // Get actual translated values for comparison
+      const actualPairs = extractAddedPairs(file.patch);
+
+      console.log(`Kodix DEBUG - source: ${JSON.stringify(sourcePairs)}`);
+      console.log(`Kodix DEBUG - actual: ${JSON.stringify(actualPairs)}`);
       console.log(`Kodix DEBUG - suggested: ${JSON.stringify(suggested)}`);
 
       // Compare suggested vs actual translations
-      for (const key of Object.keys(addedPairs)) {
-        const actual = addedPairs[key].toLowerCase().trim();
+      for (const key of Object.keys(sourcePairs)) {
+        const actual = actualPairs[key]?.toLowerCase().trim();
         const expected = suggested[key]?.toLowerCase().trim();
 
-        if (!expected) continue;
+        if (!actual || !expected) continue;
 
-        // Calculate similarity between actual and expected
         const similarity = calculateSimilarity(actual, expected);
 
-        // Flag if they're significantly different (less than 70% similar)
         if (similarity < 0.7) {
           issues.push(
-            `📖 Possible glossary/brand voice violation in \`${file.filename}\` for key \`${key}\`: got "${addedPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`,
+            `📖 Possible glossary/brand voice violation in \`${file.filename}\` for key \`${key}\`: got "${actualPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
           );
         }
       }
@@ -78425,43 +78434,44 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId) {
   return issues;
 }
 
+function extractAddedKeys(patch) {
+  const keys = [];
+  const lines = patch.split("\n");
+  lines.forEach((line) => {
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      const match = line.match(/^\+\s*"([^"]+)"\s*:/);
+      if (match) keys.push(match[1]);
+    }
+  });
+  return keys;
+}
+
 function extractAddedPairs(patch) {
   const pairs = {};
   const lines = patch.split("\n");
-
   lines.forEach((line) => {
     if (line.startsWith("+") && !line.startsWith("+++")) {
-      // Match "key": "value" pattern
       const match = line.match(/^\+\s*"([^"]+)"\s*:\s*"([^"]+)"/);
       if (match) {
         pairs[match[1]] = match[2];
       }
     }
   });
-
   return pairs;
 }
 
 function detectLocale(filename) {
-  // Extract locale from filename e.g locales/fr.json -> fr
   const match = filename.match(/([a-z]{2}(?:-[A-Z]{2})?)\.json$/);
   return match ? match[1] : null;
 }
 
-async function localizeWithLingo(
-  data,
-  sourceLocale,
-  targetLocale,
-  apiKey,
-  engineId,
-) {
+async function localizeWithLingo(data, sourceLocale, targetLocale, apiKey, engineId) {
   const body = {
     sourceLocale,
     targetLocale,
     data,
   };
 
-  // Only include engineId if provided
   if (engineId) {
     body.engineId = engineId;
   }
@@ -78484,18 +78494,14 @@ async function localizeWithLingo(
 }
 
 function calculateSimilarity(str1, str2) {
-  // Simple similarity check using common words (Jaccard similarity)
   const words1 = new Set(str1.split(/\s+/));
   const words2 = new Set(str2.split(/\s+/));
-
   const intersection = [...words1].filter((word) => words2.has(word));
   const union = new Set([...words1, ...words2]);
-
   return intersection.length / union.size;
 }
 
 module.exports = { checkGlossaryViolations };
-
 
 /***/ }),
 
@@ -78771,6 +78777,23 @@ async function run() {
 
     console.log(`Kodix: Found ${files.length} changed files`);
 
+    // Fetch base locale file content for glossary comparison
+    let baseLocaleContent = {};
+    try {
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: `${localesPath}${baseLocale}.json`,
+        ref: context.payload.pull_request.head.sha,
+      });
+      baseLocaleContent = JSON.parse(
+        Buffer.from(data.content, "base64").toString("utf-8")
+      );
+      console.log(`Kodix: Loaded base locale with ${Object.keys(baseLocaleContent).length} keys`);
+    } catch (error) {
+      console.log("Kodix: Could not fetch base locale file");
+    }
+
     const [missingKeys, hardcodedStrings, glossaryViolations] =
       await Promise.all([
         checkMissingKeys(files, localesPath, baseLocale),
@@ -78781,7 +78804,7 @@ async function run() {
           repo,
           context.payload.pull_request.head.sha,
         ),
-        checkGlossaryViolations(files, lingoApiKey, lingoEngineId),
+        checkGlossaryViolations(files, lingoApiKey, lingoEngineId, baseLocaleContent, baseLocale),
       ]);
 
     const allIssues = [
@@ -78790,15 +78813,15 @@ async function run() {
       ...glossaryViolations,
     ];
 
-    let comment = "## Kodix i18n Review\n\n";
+    let comment = "## 🌍 Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
-      comment += "**All i18n checks passed!** No issues found. Great work!\n";
+      comment += "✅ **All i18n checks passed!** No issues found. Great work!\n";
     } else {
       comment += `Found **${allIssues.length} i18n issue(s)** that need attention:\n\n`;
 
       if (missingKeys.length > 0) {
-        comment += "### Missing Translation Keys\n";
+        comment += "### 🔑 Missing Translation Keys\n";
         missingKeys.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -78806,7 +78829,7 @@ async function run() {
       }
 
       if (hardcodedStrings.length > 0) {
-        comment += "### Hardcoded Strings\n";
+        comment += "### 🔤 Hardcoded Strings\n";
         hardcodedStrings.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -78814,7 +78837,7 @@ async function run() {
       }
 
       if (glossaryViolations.length > 0) {
-        comment += "### Glossary Violations\n";
+        comment += "### 📖 Glossary Violations\n";
         glossaryViolations.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -78845,7 +78868,6 @@ async function run() {
 }
 
 run();
-
 module.exports = __webpack_exports__;
 /******/ })()
 ;
