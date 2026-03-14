@@ -31,7 +31,13 @@ async function run() {
     const [missingKeys, hardcodedStrings, glossaryViolations] =
       await Promise.all([
         checkMissingKeys(files, localesPath, baseLocale),
-        scanHardcodedStrings(files),
+        scanHardcodedStrings(
+          files,
+          octokit,
+          owner,
+          repo,
+          context.payload.pull_request.head.sha,
+        ),
         checkGlossaryViolations(files, lingoApiKey, lingoEngineId),
       ]);
 
@@ -44,13 +50,12 @@ async function run() {
     let comment = "## Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
-      comment +=
-        "**All i18n checks passed!** No issues found. Great work!\n";
+      comment += "**All i18n checks passed!** No issues found. Great work!\n";
     } else {
       comment += `Found **${allIssues.length} i18n issue(s)** that need attention:\n\n`;
 
       if (missingKeys.length > 0) {
-        comment += "### Missing Translation Keys\n"; 
+        comment += "### Missing Translation Keys\n";
         missingKeys.forEach((issue) => {
           comment += `- ${issue}\n`;
         });

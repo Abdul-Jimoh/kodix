@@ -78491,9 +78491,10 @@ module.exports = { checkGlossaryViolations };
 const parser = __nccwpck_require__(4257);
 const traverse = (__nccwpck_require__(1480)["default"]);
 
-async function scanHardcodedStrings(files) {
+async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
   const issues = [];
 
+  // Filter only JS/JSX/TS/TSX files that weren't removed
   const jsFiles = files.filter((file) => {
     const ext = file.filename.split(".").pop();
     return (
@@ -78501,44 +78502,41 @@ async function scanHardcodedStrings(files) {
     );
   });
 
-  jsFiles.forEach((file) => {
-    if (!file.patch) return;
-
-    const addedLines = extractAddedLines(file.patch);
-    if (addedLines.length === 0) return;
-
-    const codeString = addedLines.join("\n");
-
-    console.log(`Kodix DEBUG - parsing file: ${file.filename}, lines: ${addedLines.length}`);
-    console.log(`Kodix DEBUG - code sample: ${codeString.substring(0, 200)}`);
-
+  for (const file of jsFiles) {
     try {
-      const wrappedCode = `function __kodix_wrapper__() { ${codeString} }`;
+      console.log(`Kodix: Scanning ${file.filename} for hardcoded strings`);
 
-      const ast = parser.parse(wrappedCode, {
+      // Fetch the complete file content from GitHub
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: file.filename,
+        ref,
+      });
+
+      // GitHub returns content as base64 encoded string
+      const content = Buffer.from(data.content, "base64").toString("utf-8");
+
+      // Parse the complete file into an AST
+      const ast = parser.parse(content, {
         sourceType: "module",
         plugins: ["jsx", "typescript"],
         errorRecovery: true,
-        strictMode: false,
-        allowImportExportEverywhere: true,
-        allowReturnOutsideFunction: true,
-        allowSuperOutsideMethod: true,
-        allowUndeclaredExports: true,
       });
 
-      console.log(`Kodix DEBUG - parsed successfully, traversing AST`);
-
+      // Walk the AST and find hardcoded strings
       traverse(ast, {
+        // Check JSX text content e.g <button>Click me</button>
         JSXText(path) {
           const value = path.node.value.trim();
-          console.log(`Kodix DEBUG - JSXText node found: "${value}"`);
           if (value.length > 0 && /[a-zA-Z]/.test(value)) {
             issues.push(
-              `🔤 Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`,
+              `🔤 Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`
             );
           }
         },
 
+        // Check JSX attributes e.g placeholder="Enter name"
         JSXAttribute(path) {
           if (
             path.node.value &&
@@ -78547,34 +78545,23 @@ async function scanHardcodedStrings(files) {
           ) {
             const attrName = path.node.name.name;
             const attrValue = path.node.value.value;
-            console.log(`Kodix DEBUG - JSXAttribute found: ${attrName}="${attrValue}"`);
             if (["placeholder", "label", "title", "alt"].includes(attrName)) {
               issues.push(
-                `🔤 Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`,
+                `🔤 Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`
               );
             }
           }
         },
       });
 
-      console.log(`Kodix DEBUG - traversal complete, issues found so far: ${issues.length}`);
+      console.log(`Kodix: Finished scanning ${file.filename}`);
 
     } catch (error) {
-      console.log(`Kodix: Could not parse ${file.filename}, skipping`);
-      console.log(`Kodix DEBUG - parse error: ${error.message}`);
+      console.log(`Kodix: Could not scan ${file.filename} — ${error.message}`);
     }
-  });
+  }
 
   return issues;
-}
-
-function extractAddedLines(patch) {
-  if (!patch) return [];
-
-  return patch
-    .split("\n")
-    .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-    .map((line) => line.slice(1));
 }
 
 module.exports = { scanHardcodedStrings };
@@ -78773,7 +78760,13 @@ async function run() {
     const [missingKeys, hardcodedStrings, glossaryViolations] =
       await Promise.all([
         checkMissingKeys(files, localesPath, baseLocale),
-        scanHardcodedStrings(files),
+        scanHardcodedStrings(
+          files,
+          octokit,
+          owner,
+          repo,
+          context.payload.pull_request.head.sha,
+        ),
         checkGlossaryViolations(files, lingoApiKey, lingoEngineId),
       ]);
 
@@ -78786,13 +78779,12 @@ async function run() {
     let comment = "## Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
-      comment +=
-        "**All i18n checks passed!** No issues found. Great work!\n";
+      comment += "**All i18n checks passed!** No issues found. Great work!\n";
     } else {
       comment += `Found **${allIssues.length} i18n issue(s)** that need attention:\n\n`;
 
       if (missingKeys.length > 0) {
-        comment += "### Missing Translation Keys\n"; 
+        comment += "### Missing Translation Keys\n";
         missingKeys.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
