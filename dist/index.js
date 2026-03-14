@@ -78509,6 +78509,9 @@ async function scanHardcodedStrings(files) {
 
     const codeString = addedLines.join("\n");
 
+    console.log(`Kodix DEBUG - parsing file: ${file.filename}, lines: ${addedLines.length}`);
+    console.log(`Kodix DEBUG - code sample: ${codeString.substring(0, 200)}`);
+
     try {
       const wrappedCode = `function __kodix_wrapper__() { ${codeString} }`;
 
@@ -78523,12 +78526,15 @@ async function scanHardcodedStrings(files) {
         allowUndeclaredExports: true,
       });
 
+      console.log(`Kodix DEBUG - parsed successfully, traversing AST`);
+
       traverse(ast, {
         JSXText(path) {
           const value = path.node.value.trim();
+          console.log(`Kodix DEBUG - JSXText node found: "${value}"`);
           if (value.length > 0 && /[a-zA-Z]/.test(value)) {
             issues.push(
-              `Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`,
+              `🔤 Hardcoded string found in \`${file.filename}\`: "${value}" — consider using a translation key`,
             );
           }
         },
@@ -78541,16 +78547,21 @@ async function scanHardcodedStrings(files) {
           ) {
             const attrName = path.node.name.name;
             const attrValue = path.node.value.value;
+            console.log(`Kodix DEBUG - JSXAttribute found: ${attrName}="${attrValue}"`);
             if (["placeholder", "label", "title", "alt"].includes(attrName)) {
               issues.push(
-                `Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`,
+                `🔤 Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`,
               );
             }
           }
         },
       });
+
+      console.log(`Kodix DEBUG - traversal complete, issues found so far: ${issues.length}`);
+
     } catch (error) {
       console.log(`Kodix: Could not parse ${file.filename}, skipping`);
+      console.log(`Kodix DEBUG - parse error: ${error.message}`);
     }
   });
 
@@ -78567,7 +78578,6 @@ function extractAddedLines(patch) {
 }
 
 module.exports = { scanHardcodedStrings };
-
 
 /***/ }),
 
