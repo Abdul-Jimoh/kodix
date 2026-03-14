@@ -20,7 +20,9 @@ async function scanHardcodedStrings(files) {
     const codeString = addedLines.join("\n");
 
     try {
-      const ast = parser.parse(codeString, {
+      const wrappedCode = `function __kodix_wrapper__() { ${codeString} }`;
+
+      const ast = parser.parse(wrappedCode, {
         sourceType: "module",
         plugins: ["jsx", "typescript"],
         errorRecovery: true,
