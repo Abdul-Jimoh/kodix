@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A GitHub Action that reviews PRs for i18n issues using Lingo.dev",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -18,6 +19,8 @@
   },
   "homepage": "https://github.com/Abdul-Jimoh/kodix#readme",
   "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1",
     "@babel/parser": "^7.29.0",
     "@babel/traverse": "^7.29.0",
     "@octokit/rest": "^22.0.1"
