@@ -6,7 +6,6 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
     return issues;
   }
 
-  // Filter only changed locale JSON files, excluding the base locale
   const localeFiles = files.filter(
     (file) =>
       file.filename.endsWith(".json") &&
@@ -22,11 +21,9 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
   for (const file of localeFiles) {
     if (!file.patch) continue;
 
-    // Get the keys that were added/modified in this locale file
     const addedKeys = extractAddedKeys(file.patch);
     if (addedKeys.length === 0) continue;
 
-    // Build pairs using base locale source values for these keys
     const sourcePairs = {};
     addedKeys.forEach((key) => {
       if (baseLocaleContent[key]) {
@@ -36,17 +33,12 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
 
     if (Object.keys(sourcePairs).length === 0) continue;
 
-    // Detect target locale from filename e.g locales/fr.json -> fr
     const targetLocale = detectLocale(file.filename);
     if (!targetLocale) continue;
 
-    console.log(
-      `Kodix: Checking ${Object.keys(sourcePairs).length} translations in ${file.filename} against Lingo.dev engine`
-    );
+    console.log(`Kodix: Checking ${Object.keys(sourcePairs).length} translations in ${file.filename} against Lingo.dev engine`);
 
     try {
-      // Ask Lingo.dev what the correct translations should be
-      // using the base locale values as source
       const suggested = await localizeWithLingo(
         sourcePairs,
         baseLocale,
@@ -55,14 +47,8 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
         engineId
       );
 
-      // Get actual translated values for comparison
       const actualPairs = extractAddedPairs(file.patch);
 
-      console.log(`Kodix DEBUG - source: ${JSON.stringify(sourcePairs)}`);
-      console.log(`Kodix DEBUG - actual: ${JSON.stringify(actualPairs)}`);
-      console.log(`Kodix DEBUG - suggested: ${JSON.stringify(suggested)}`);
-
-      // Compare suggested vs actual translations
       for (const key of Object.keys(sourcePairs)) {
         const actual = actualPairs[key]?.toLowerCase().trim();
         const expected = suggested[key]?.toLowerCase().trim();
@@ -71,9 +57,9 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
 
         const similarity = calculateSimilarity(actual, expected);
 
-        if (similarity < 0.7) {
+        if (similarity < 0.5) {
           issues.push(
-            `📖 Possible glossary/brand voice violation in \`${file.filename}\` for key \`${key}\`: got "${actualPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
+            `Possible glossary violation in \`${file.filename}\` for key \`${key}\`: got "${actualPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
           );
         }
       }
@@ -126,9 +112,6 @@ async function localizeWithLingo(data, sourceLocale, targetLocale, apiKey, engin
   if (engineId) {
     body.engineId = engineId;
   }
-
-  console.log(`Kodix DEBUG - calling lingo with engineId: "${engineId}" sourceLocale: "${sourceLocale}" targetLocale: "${targetLocale}"`);
-  console.log(`Kodix DEBUG - request body: ${JSON.stringify(body)}`);
 
   const response = await fetch("https://api.lingo.dev/process/localize", {
     method: "POST",

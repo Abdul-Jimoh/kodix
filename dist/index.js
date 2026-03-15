@@ -78355,7 +78355,6 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
     return issues;
   }
 
-  // Filter only changed locale JSON files, excluding the base locale
   const localeFiles = files.filter(
     (file) =>
       file.filename.endsWith(".json") &&
@@ -78371,11 +78370,9 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
   for (const file of localeFiles) {
     if (!file.patch) continue;
 
-    // Get the keys that were added/modified in this locale file
     const addedKeys = extractAddedKeys(file.patch);
     if (addedKeys.length === 0) continue;
 
-    // Build pairs using base locale source values for these keys
     const sourcePairs = {};
     addedKeys.forEach((key) => {
       if (baseLocaleContent[key]) {
@@ -78385,17 +78382,12 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
 
     if (Object.keys(sourcePairs).length === 0) continue;
 
-    // Detect target locale from filename e.g locales/fr.json -> fr
     const targetLocale = detectLocale(file.filename);
     if (!targetLocale) continue;
 
-    console.log(
-      `Kodix: Checking ${Object.keys(sourcePairs).length} translations in ${file.filename} against Lingo.dev engine`
-    );
+    console.log(`Kodix: Checking ${Object.keys(sourcePairs).length} translations in ${file.filename} against Lingo.dev engine`);
 
     try {
-      // Ask Lingo.dev what the correct translations should be
-      // using the base locale values as source
       const suggested = await localizeWithLingo(
         sourcePairs,
         baseLocale,
@@ -78404,14 +78396,8 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
         engineId
       );
 
-      // Get actual translated values for comparison
       const actualPairs = extractAddedPairs(file.patch);
 
-      console.log(`Kodix DEBUG - source: ${JSON.stringify(sourcePairs)}`);
-      console.log(`Kodix DEBUG - actual: ${JSON.stringify(actualPairs)}`);
-      console.log(`Kodix DEBUG - suggested: ${JSON.stringify(suggested)}`);
-
-      // Compare suggested vs actual translations
       for (const key of Object.keys(sourcePairs)) {
         const actual = actualPairs[key]?.toLowerCase().trim();
         const expected = suggested[key]?.toLowerCase().trim();
@@ -78420,9 +78406,9 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
 
         const similarity = calculateSimilarity(actual, expected);
 
-        if (similarity < 0.7) {
+        if (similarity < 0.5) {
           issues.push(
-            `📖 Possible glossary/brand voice violation in \`${file.filename}\` for key \`${key}\`: got "${actualPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
+            `Possible glossary violation in \`${file.filename}\` for key \`${key}\`: got "${actualPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
           );
         }
       }
@@ -78476,9 +78462,6 @@ async function localizeWithLingo(data, sourceLocale, targetLocale, apiKey, engin
     body.engineId = engineId;
   }
 
-  console.log(`Kodix DEBUG - calling lingo with engineId: "${engineId}" sourceLocale: "${sourceLocale}" targetLocale: "${targetLocale}"`);
-  console.log(`Kodix DEBUG - request body: ${JSON.stringify(body)}`);
-
   const response = await fetch("https://api.lingo.dev/process/localize", {
     method: "POST",
     headers: {
@@ -78517,7 +78500,6 @@ const traverse = (__nccwpck_require__(1480)["default"]);
 async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
   const issues = [];
 
-  // Filter only JS/JSX/TS/TSX files that weren't removed
   const jsFiles = files.filter((file) => {
     const ext = file.filename.split(".").pop();
     return (
@@ -78527,9 +78509,6 @@ async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
 
   for (const file of jsFiles) {
     try {
-      console.log(`Kodix: Scanning ${file.filename} for hardcoded strings`);
-
-      // Fetch the complete file content from GitHub
       const { data } = await octokit.rest.repos.getContent({
         owner,
         repo,
@@ -78537,19 +78516,15 @@ async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
         ref,
       });
 
-      // GitHub returns content as base64 encoded string
       const content = Buffer.from(data.content, "base64").toString("utf-8");
 
-      // Parse the complete file into an AST
       const ast = parser.parse(content, {
         sourceType: "module",
         plugins: ["jsx", "typescript"],
         errorRecovery: true,
       });
 
-      // Walk the AST and find hardcoded strings
       traverse(ast, {
-        // Check JSX text content e.g <button>Click me</button>
         JSXText(path) {
           const value = path.node.value.trim();
           if (value.length > 0 && /[a-zA-Z]/.test(value)) {
@@ -78559,7 +78534,6 @@ async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
           }
         },
 
-        // Check JSX attributes e.g placeholder="Enter name"
         JSXAttribute(path) {
           if (
             path.node.value &&
@@ -78570,15 +78544,12 @@ async function scanHardcodedStrings(files, octokit, owner, repo, ref) {
             const attrValue = path.node.value.value;
             if (["placeholder", "label", "title", "alt"].includes(attrName)) {
               issues.push(
-                `🔤 Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`
+                `Hardcoded attribute \`${attrName}="${attrValue}"\` in \`${file.filename}\` — consider using a translation key`
               );
             }
           }
         },
       });
-
-      console.log(`Kodix: Finished scanning ${file.filename}`);
-
     } catch (error) {
       console.log(`Kodix: Could not scan ${file.filename} — ${error.message}`);
     }
@@ -78770,17 +78741,12 @@ async function run() {
     const { owner, repo } = context.repo;
     const prNumber = context.payload.pull_request.number;
 
-    console.log(`Kodix: Starting i18n review for PR #${prNumber}`);
-
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner,
       repo,
       pull_number: prNumber,
     });
 
-    console.log(`Kodix: Found ${files.length} changed files`);
-
-    // Fetch base locale file content for glossary comparison
     let baseLocaleContent = {};
     try {
       const { data } = await octokit.rest.repos.getContent({
@@ -78792,7 +78758,6 @@ async function run() {
       baseLocaleContent = JSON.parse(
         Buffer.from(data.content, "base64").toString("utf-8")
       );
-      console.log(`Kodix: Loaded base locale with ${Object.keys(baseLocaleContent).length} keys`);
     } catch (error) {
       console.log("Kodix: Could not fetch base locale file");
     }
@@ -78816,15 +78781,15 @@ async function run() {
       ...glossaryViolations,
     ];
 
-    let comment = "## 🌍 Kodix i18n Review\n\n";
+    let comment = "## Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
-      comment += "✅ **All i18n checks passed!** No issues found. Great work!\n";
+      comment += "**All i18n checks passed!** No issues found. Great work!\n";
     } else {
       comment += `Found **${allIssues.length} i18n issue(s)** that need attention:\n\n`;
 
       if (missingKeys.length > 0) {
-        comment += "### 🔑 Missing Translation Keys\n";
+        comment += "### Missing Translation Keys\n";
         missingKeys.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -78832,7 +78797,7 @@ async function run() {
       }
 
       if (hardcodedStrings.length > 0) {
-        comment += "### 🔤 Hardcoded Strings\n";
+        comment += "### Hardcoded Strings\n";
         hardcodedStrings.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -78840,7 +78805,7 @@ async function run() {
       }
 
       if (glossaryViolations.length > 0) {
-        comment += "### 📖 Glossary Violations\n";
+        comment += "### Glossary Violations\n";
         glossaryViolations.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -78857,8 +78822,6 @@ async function run() {
       issue_number: prNumber,
       body: comment,
     });
-
-    console.log("Kodix: Review comment posted successfully");
 
     if (allIssues.length > 0) {
       core.setFailed(

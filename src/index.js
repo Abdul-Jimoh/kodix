@@ -18,17 +18,12 @@ async function run() {
     const { owner, repo } = context.repo;
     const prNumber = context.payload.pull_request.number;
 
-    console.log(`Kodix: Starting i18n review for PR #${prNumber}`);
-
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner,
       repo,
       pull_number: prNumber,
     });
 
-    console.log(`Kodix: Found ${files.length} changed files`);
-
-    // Fetch base locale file content for glossary comparison
     let baseLocaleContent = {};
     try {
       const { data } = await octokit.rest.repos.getContent({
@@ -40,7 +35,6 @@ async function run() {
       baseLocaleContent = JSON.parse(
         Buffer.from(data.content, "base64").toString("utf-8")
       );
-      console.log(`Kodix: Loaded base locale with ${Object.keys(baseLocaleContent).length} keys`);
     } catch (error) {
       console.log("Kodix: Could not fetch base locale file");
     }
@@ -64,15 +58,15 @@ async function run() {
       ...glossaryViolations,
     ];
 
-    let comment = "## 🌍 Kodix i18n Review\n\n";
+    let comment = "## Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
-      comment += "✅ **All i18n checks passed!** No issues found. Great work!\n";
+      comment += "**All i18n checks passed!** No issues found. Great work!\n";
     } else {
       comment += `Found **${allIssues.length} i18n issue(s)** that need attention:\n\n`;
 
       if (missingKeys.length > 0) {
-        comment += "### 🔑 Missing Translation Keys\n";
+        comment += "### Missing Translation Keys\n";
         missingKeys.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -80,7 +74,7 @@ async function run() {
       }
 
       if (hardcodedStrings.length > 0) {
-        comment += "### 🔤 Hardcoded Strings\n";
+        comment += "### Hardcoded Strings\n";
         hardcodedStrings.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -88,7 +82,7 @@ async function run() {
       }
 
       if (glossaryViolations.length > 0) {
-        comment += "### 📖 Glossary Violations\n";
+        comment += "### Glossary Violations\n";
         glossaryViolations.forEach((issue) => {
           comment += `- ${issue}\n`;
         });
@@ -105,8 +99,6 @@ async function run() {
       issue_number: prNumber,
       body: comment,
     });
-
-    console.log("Kodix: Review comment posted successfully");
 
     if (allIssues.length > 0) {
       core.setFailed(
