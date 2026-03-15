@@ -33,7 +33,7 @@ async function run() {
         ref: context.payload.pull_request.head.sha,
       });
       baseLocaleContent = JSON.parse(
-        Buffer.from(data.content, "base64").toString("utf-8")
+        Buffer.from(data.content, "base64").toString("utf-8"),
       );
     } catch (error) {
       console.log("Kodix: Could not fetch base locale file");
@@ -49,7 +49,13 @@ async function run() {
           repo,
           context.payload.pull_request.head.sha,
         ),
-        checkGlossaryViolations(files, lingoApiKey, lingoEngineId, baseLocaleContent, baseLocale),
+        checkGlossaryViolations(
+          files,
+          lingoApiKey,
+          lingoEngineId,
+          baseLocaleContent,
+          baseLocale,
+        ),
       ]);
 
     const allIssues = [
@@ -58,7 +64,7 @@ async function run() {
       ...glossaryViolations,
     ];
 
-    let comment = "## Kodix i18n Review\n\n";
+    let comment = "<!-- kodix-i18n-review -->\n## Kodix i18n Review\n\n";
 
     if (allIssues.length === 0) {
       comment += "**All i18n checks passed!** No issues found. Great work!\n";
@@ -93,12 +99,33 @@ async function run() {
     comment +=
       "---\n*Powered by [Kodix](https://github.com/Abdul-Jimoh/kodix) using [Lingo.dev](https://lingo.dev)*";
 
-    await octokit.rest.issues.createComment({
+    const { data: comments } = await octokit.rest.issues.listComments({
       owner,
       repo,
       issue_number: prNumber,
-      body: comment,
     });
+
+    const existingComment = comments.find(
+      (c) =>
+        c.user.login === "github-actions[bot]" &&
+        c.body.includes("<!-- kodix-i18n-review -->"),
+    );
+
+    if (existingComment) {
+      await octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: existingComment.id,
+        body: comment,
+      });
+    } else {
+      await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: prNumber,
+        body: comment,
+      });
+    }
 
     if (allIssues.length > 0) {
       core.setFailed(
