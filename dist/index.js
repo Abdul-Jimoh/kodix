@@ -78406,7 +78406,7 @@ async function checkGlossaryViolations(files, lingoApiKey, engineId, baseLocaleC
 
         const similarity = calculateSimilarity(actual, expected);
 
-        if (similarity < 0.5) {
+        if (similarity < 0.3) {
           issues.push(
             `Possible glossary violation in \`${file.filename}\` for key \`${key}\`: got "${actualPairs[key]}" but Lingo.dev suggests "${suggested[key]}"`
           );
